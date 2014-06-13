@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Random;
+import java.util.Set;
 
 
 
@@ -127,14 +128,15 @@ public class Evolution {
 				return new Float(rateFitness(rhs)).compareTo(new Float(rateFitness(lhs)));
 			}
 		});
-		
-		// Keep some of the best without changes
-		for (int i = 0; i < current.size() / 3; ++i)
+				
+		// Keep some of the best
+		for (int i = 0; i < current.size() / 4; ++i)
 			next.add(current.get(i));
 		
-		// Mutate all
-		for (MastDistribution individual : current)
-			next.add(mutate(individual));
+		// Mutate some of the best multiple times
+		for (int i = 0; i < current.size(); ++i)
+			for (int j = 0; j < 5; ++j)
+				next.add(mutate(current.get(i), generationNumber));
 		
 		// Add some random
 		for (int i = 0; i < current.size() / 2; ++i) {
@@ -142,20 +144,21 @@ public class Evolution {
 			individual.randomize(100);
 			next.add(individual);
 		}
-		
+
 		// Sort candidates for next generation by fitness
 		Collections.sort(next, new Comparator<MastDistribution>() {
 			public int compare(MastDistribution lhs, MastDistribution rhs) {
 				return new Float(rateFitness(rhs)).compareTo(new Float(rateFitness(lhs)));
 			}
 		});
-		
+
 		// Print stats of best individual
 		if (output) {
 			MastDistribution best = next.get(0);
 			float coverage = (float) best.coverage() / CountryMap.countrySize;
 			float cost = (float) best.getOverallCost() / budget;
-			System.out.println("Generation: " + generationNumber + ", Coverage: " + coverage +  ", Cost: " + cost);
+			float rate = 0.31618f / (float) Math.pow(1 + generationNumber / 1000.0, 2.0);
+			System.out.println("Generation: " + generationNumber + ", Coverage: " + coverage +  ", Cost: " + cost + ", Rate: " + rate);
 		}
 		
 		// Create next generation form same amount of best individuals
@@ -164,7 +167,8 @@ public class Evolution {
 			nextGeneration.setIndividual(next.get(i), i);
 		currentGeneration = nextGeneration;
 		generationNumber++;
-		check();
+		if (output)
+			check();
 	}
 	
 	public float rateFitness(MastDistribution individual) {
@@ -172,94 +176,44 @@ public class Evolution {
 		double cost = (double) individual.getOverallCost() / budget;
 		double coverage = (double) individual.coverage() / CountryMap.countrySize;
 		
-		// Logarithmic cutoff for expensive distributions
-		// cost = 1.0 + Math.log(Math.max(0, 1.0 - 0.9 * cost));
-
-		// Logarithmic raise for good coverage
-		// Graph at http://goo.gl/v5P9LG
+		// Logarithmic raise for good coverage or too expensive distributions
+		// Graph at http://goo.gl/X0LguK
+		// cost = - Math.log(Math.max(0, 1.0 - 0.9 * cost));
 		// coverage = - Math.log(Math.max(0, 1.0 - 0.9 * coverage));
 		
 		// Sigmoid alternative
 		// Graph at http://goo.gl/n384EP
 		// coverage = 1 / (1 + Math.exp(-8 * coverage + 4));
 		
-		// Clamp between zero and one
-		// cost = clamp(cost);
-		// coverage = clamp(coverage);
+		// Linear relation
+		// Graph at http://goo.gl/bS4OZ3
+		// double fitness = coverage / (1 + cost);
 		
-		// Weight parameters to compute fitness
-		// double fitness = mix(coverage, cost, 0.05);
-		// double fitness = coverage * cost;
-		double fitness = coverage * Math.pow(1 - 0.15 * cost, 2.0) / (1 + cost);
-		
-		/*
-		double fitness = 2.0 * Math.pow(coverage, 2.0)
-					   + 0.9 * Math.pow(cost, 2.0)
-					   + 1.3 * coverage
-					   + 1.0 * cost;
-		/**/
-		
-		/*
-		// return (float) (coverage / (1 + 2.0 * cost));
-		double cutoff = cost > 1.0 ? 1 / (1 + cost) : 1.0;
-		coverage = 1.5 * Math.pow(coverage, 2.0) + 1.5 * coverage;
-		cost = 1 + 0.5 * Math.pow(cost, 2.0) + 0.5 * cost;
-		return (float) (cutoff * coverage / cost);
-		/**/
+		// Clamp after goal reached
+		cost = clamp(cost, 1.0, Integer.MAX_VALUE) - 1.0;
+		coverage = clamp(coverage, 0.0, 0.9) / 0.9;
+		double fitness = coverage / (1 + cost);
 		
 		return (float) fitness;
 	}
 	
-	public MastDistribution mutate(MastDistribution individual) {
-		double rate = 0.1;
+	public MastDistribution mutate(MastDistribution individual, int generation) {
+		double rate = 1 / Math.pow(1 + (double) generation / 1000, 5);
 		
 		// Get masts as hashmap
 		HashMap<Point, TransmitterMast> masts = getMasts(individual);
 		
-		// Change amount of masts
-		int amount = (int) (masts.size() * (1 + rate * random()));
-		amount = Math.max(amount, 1);		
-		while (amount < masts.size())
-			masts.remove(pickRandomMast(masts));
-		
-		// Fill up with random masts
-		addMasts(masts, amount - masts.size());
-		
-		// Randomly move masts
-		final int maxMove = 10;
-		int moves = (int) (masts.size() * rate * Math.random());
-		int moved = 0;
-		for (int abort = 0; moved < moves && abort < 10 * moves; ++abort) {
-			// Grab random mast from set
-			Point point = pickRandomMast(masts);
-			
-			// Try to find a near place
-			int x = point.x + (int) random(rate * -maxMove, rate * maxMove);
-			int y = point.y + (int) random(rate * -maxMove, rate * maxMove);
-			Point place = new Point(x, y);
-			
-			if (0 > x || x > CountryMap.mapWidth - 1)
-				continue;
-			if (0 > y || y > CountryMap.mapHeight - 1)
-				continue;
-			if (CountryMap.countryMap[y][x] == 0)
-				continue;
-			if (masts.get(place) != null)
-				continue;
-
-			// Move mast to new place
-			masts.put(place, masts.get(point));
-			masts.remove(point);
-			moved++;	
+		// Perform random manipulations
+		Random random = new Random();
+		switch (random.nextInt(3)) {
+		case 0: changeMastAmount(masts, 0.1 * rate * random()); break;
+		case 1: changeMastPositions(masts, 3 - generation * 3 / 1000); break;
+		case 2: changeMastTypes(masts, 0.5 * rate * Math.random()); break;
 		}
-		
-		// Randomly change mast types
-		// ...
 		
 		// Create individual from new mast set
 		MastDistribution successor = new MastDistribution();
 		setMasts(successor, masts);
-		
 		return successor;
 	}
 	
@@ -305,12 +259,7 @@ public class Evolution {
 	    // Add given amount of masts
 		for (int i = 0; i < amount; ++i) {
 			// Decide for mast type
-			TransmitterMast mast = null;
-			switch (random.nextInt(3)) {
-				case 0: mast = new TransmitterMast(TransmitterMast.MastType.A); break;
-				case 1: mast = new TransmitterMast(TransmitterMast.MastType.B); break;
-				case 2: mast = new TransmitterMast(TransmitterMast.MastType.C); break;
-			}
+			TransmitterMast mast = randomMast();
 			
 			// Find valid coordinates
 			for (int abort = 0; abort < 10; ++abort) {
@@ -324,23 +273,76 @@ public class Evolution {
 			};
 		}
 	}
+
+	private TransmitterMast randomMast() {
+		Random random = new Random();
+		switch (random.nextInt(3)) {
+			case 0: return new TransmitterMast(TransmitterMast.MastType.A);
+			case 1: return new TransmitterMast(TransmitterMast.MastType.B);
+			case 2: return new TransmitterMast(TransmitterMast.MastType.C); 
+		}
+		return null;
+	}
 	
 	private Point pickRandomMast(HashMap<Point, TransmitterMast> masts) {
 		Random random = new Random();
 		Point[] points = masts.keySet().toArray(new Point[masts.size()]);
 		return points[random.nextInt(points.length)];
 	}
+
+	private void changeMastAmount(HashMap<Point, TransmitterMast> masts, double rate) {
+		// Change amount of masts
+		int amount = (int) (masts.size() * (1 + rate));
+		amount = Math.max(amount, 1);
+		while (amount < masts.size())
+			masts.remove(pickRandomMast(masts));
 		
+		// Fill up with random masts
+		addMasts(masts, amount - masts.size());
+	}
+	
+	private void changeMastPositions(HashMap<Point, TransmitterMast> masts, int distance) {
+		// For each each point
+		@SuppressWarnings("unchecked")
+		HashMap<Point, TransmitterMast> from = (HashMap<Point, TransmitterMast>) masts.clone();
+		masts.clear();
+		for (Point point : from.keySet()) {
+			// Try ten times
+			for (int i = 0; i < 10; ++i) {
+				// Find a near place
+				int x = point.x + (int) random(0.5-distance, 0.5+distance);
+				int y = point.y + (int) random(0.5-distance, 0.5+distance);
+				Point place = new Point(x, y);
+				
+				// Skip if out of country or already blocked
+				if (0 > x || x > CountryMap.mapWidth - 1)
+					continue;
+				if (0 > y || y > CountryMap.mapHeight - 1)
+					continue;
+				if (CountryMap.countryMap[y][x] == 0)
+					continue;
+				if (masts.get(place) != null)
+					continue;
+	
+				// Move mast to new place
+				masts.put(place, from.get(point));
+				break;
+			}
+		}
+	}
+	
+	private void changeMastTypes(HashMap<Point, TransmitterMast> masts, double percentage) {
+		int changes = (int) (masts.size() * percentage);
+		for (int i = 0; i < changes; ++i)
+			masts.put(pickRandomMast(masts), randomMast());
+	}
+	
 	private double random() {
-		return random(-1.0f, 1.0f);
+		return random(-1.0, 1.0);
 	}
 	
 	private double random(double min, double max) {
 		return min + (max - min) * Math.random();
-	}
-	
-	private double mix(double left, double right, double ratio) {
-		return (1 - ratio) * left + ratio * right;
 	}
 	
 	private double clamp(double value) {
@@ -349,6 +351,10 @@ public class Evolution {
 	
 	private double clamp(double value, double min, double max) {
 		return Math.min(max, Math.max(min, value));
+	}
+	
+	private int sign(double value) {
+		return value < 0.0 ? -1 : value > 0.0 ? 1 : 0;
 	}
 
 	public static void main(String[] args) {

@@ -191,12 +191,12 @@ public class EvolutionGUI implements ActionListener {
 		final EvolutionGUI gui = new EvolutionGUI(evolution);
 		
 		// Give some evolutions in advance
-		int runs = 10000;
+		int runs = 1000;
  		for (int i = 0; i < runs - 1; ++i)
  			evolution.evolve(false);
  		System.out.println("Finished " + runs + " runs in advance.");
 		evolution.evolve(true);
- 		
+		
 		// Click your way through the generations until the evolution is terminated
 		SwingUtilities.invokeLater(new Runnable() {
 			public void run() {
