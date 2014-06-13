@@ -222,7 +222,7 @@ public class Evolution {
 		HashMap<Point, TransmitterMast> masts = getMasts(individual);
 		
 		// Perform random manipulations
-		Random random = new Random();
+		Random random = new Random(System.currentTimeMillis());
 		switch (random.nextInt(3)) {
 		case 0: changeMastAmount(masts, 0.1 * rate * random()); break;
 		case 1: changeMastPositions(masts, 3 - generation * 3 / 1000); break;
@@ -236,7 +236,7 @@ public class Evolution {
 	}
 	
 	public MastDistribution crossover(MastDistribution... parentIndividuals) {
-		Random random = new Random();
+		Random random = new Random(System.currentTimeMillis());
 		MastDistribution result = new MastDistribution();
 		for (int y = 0; y < CountryMap.mapHeight; ++y) {
 			for (int x = 0; x < CountryMap.mapWidth; ++x) {
@@ -284,7 +284,7 @@ public class Evolution {
 	}
 	
 	private void addMasts(HashMap<Point, TransmitterMast> masts, int amount) {
-	    Random random = new Random();
+	    Random random = new Random(System.currentTimeMillis());
 	    
 	    // Add given amount of masts
 		for (int i = 0; i < amount; ++i) {
@@ -305,7 +305,7 @@ public class Evolution {
 	}
 
 	private TransmitterMast randomMast() {
-		Random random = new Random();
+		Random random = new Random(System.currentTimeMillis());
 		switch (random.nextInt(3)) {
 			case 0: return new TransmitterMast(TransmitterMast.MastType.A);
 			case 1: return new TransmitterMast(TransmitterMast.MastType.B);
@@ -315,7 +315,7 @@ public class Evolution {
 	}
 	
 	private Point pickRandomMast(HashMap<Point, TransmitterMast> masts) {
-		Random random = new Random();
+		Random random = new Random(System.currentTimeMillis());
 		Point[] points = masts.keySet().toArray(new Point[masts.size()]);
 		return points[random.nextInt(points.length)];
 	}
