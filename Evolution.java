@@ -130,21 +130,37 @@ public class Evolution {
 		});
 				
 		// Keep some of the best
-		for (int i = 0; i < current.size() / 4; ++i)
+		for (int i = 0; i < current.size() / 6; ++i)
 			next.add(current.get(i));
 		
-		// Mutate some of the best multiple times
+		// Mutate multiple times
 		for (int i = 0; i < current.size(); ++i)
-			for (int j = 0; j < 5; ++j)
+			for (int j = 0; j < current.size(); ++j)
 				next.add(mutate(current.get(i), generationNumber));
 		
+		// Cross over with each other
+		for (int i = 0; i < current.size(); ++i)
+			for (int j = 0; j < current.size(); ++j)
+				next.add(crossover(current.get(i), current.get(j)));
+		
+		// Cross over with the best
+		for (int i = 0; i < current.size(); ++i)
+			next.add(crossover(current.get(i), current.get(0)));
+		
+		// Cross over with random
+		for (int i = 0; i < current.size(); ++i) {
+			MastDistribution individual = new MastDistribution();
+			individual.randomize(100);
+			next.add(crossover(current.get(i), individual));
+		}
+		
 		// Add some random
-		for (int i = 0; i < current.size() / 2; ++i) {
+		for (int i = 0; i < current.size(); ++i) {
 			MastDistribution individual = new MastDistribution();
 			individual.randomize(100);
 			next.add(individual);
 		}
-
+		
 		// Sort candidates for next generation by fitness
 		Collections.sort(next, new Comparator<MastDistribution>() {
 			public int compare(MastDistribution lhs, MastDistribution rhs) {
@@ -199,6 +215,8 @@ public class Evolution {
 	
 	public MastDistribution mutate(MastDistribution individual, int generation) {
 		double rate = 1 / Math.pow(1 + (double) generation / 1000, 5);
+		rate = clamp(rate, 0.01, 1.0);
+		rate = 0.5;
 		
 		// Get masts as hashmap
 		HashMap<Point, TransmitterMast> masts = getMasts(individual);
@@ -218,9 +236,21 @@ public class Evolution {
 	}
 	
 	public MastDistribution crossover(MastDistribution... parentIndividuals) {
-		//TODO: implement
-		//i.e., combine attributes from parents
-		return null;
+		Random random = new Random();
+		MastDistribution result = new MastDistribution();
+		for (int y = 0; y < CountryMap.mapHeight; ++y) {
+			for (int x = 0; x < CountryMap.mapWidth; ++x) {
+				int choice = random.nextInt(parentIndividuals.length);
+				TransmitterMast mast = parentIndividuals[choice].getMastMap()[y][x];
+				if (mast != null)
+					try {
+						result.addMast(mast, x, y);
+					} catch (Exception e) {
+						e.printStackTrace();
+					}
+			}
+		}
+		return result;
 	}
 	
 	public boolean isTerminated() {
