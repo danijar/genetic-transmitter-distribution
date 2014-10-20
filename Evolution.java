@@ -171,12 +171,15 @@ public class Evolution {
 			}
 		});
 
+		// Filter out duplicates
+		// ...
+		
 		// Print stats of best individual
 		if (output) {
 			MastDistribution best = next.get(0);
 			float coverage = (float) best.coverage() / CountryMap.countrySize;
 			float cost = (float) best.getOverallCost() / budget;
-			float rate = 0.31618f / (float) Math.pow(1 + generationNumber / 1000.0, 2.0);
+			float rate = 1 / (float) Math.pow(1 + (double) generationNumber / 1000.0, 2.0);
 			System.out.println("Generation: " + generationNumber + ", Coverage: " + coverage +  ", Cost: " + cost + ", Rate: " + rate);
 		}
 		
@@ -218,19 +221,27 @@ public class Evolution {
 	}
 	
 	public MastDistribution mutate(MastDistribution individual, int generation) {
-		double rate = 1 / Math.pow(1 + (double) generation / 100, 5);
+		double rate = 1 / Math.pow(1 + (double) generation / 1000, 5);
 		rate = clamp(rate, 0.01, 1.0);
 		
 		// Get masts as hashmap
 		HashMap<Point, TransmitterMast> masts = getMasts(individual);
 		
+		/*
 		// Perform random manipulations
 		Random random = new Random(System.currentTimeMillis());
 		switch (random.nextInt(1)) {
 		case 0: changeMastAmount(masts, rate * random()); break;
-		case 1: changeMastPositions(masts, 1, 2); break;
-		case 2: changeMastTypes(masts, rate * Math.random()); break;
+		case 1: changeMastTypes(masts, rate * Math.random()); break;
+		case 2: changeMastPositions(masts, 1, 2); break;
 		}
+		*/
+		
+		if (random() > 0)
+			changeMastAmount(masts, rate * random());
+		else
+			changeMastTypes(masts, rate * Math.random());
+	
 		
 		// Create individual from new mast set
 		MastDistribution successor = new MastDistribution();
@@ -245,12 +256,13 @@ public class Evolution {
 			for (int x = 0; x < CountryMap.mapWidth; ++x) {
 				int choice = random.nextInt(parentIndividuals.length);
 				TransmitterMast mast = parentIndividuals[choice].getMastMap()[y][x];
-				if (mast != null)
+				if (mast != null) {
 					try {
 						result.addMast(mast, x, y);
 					} catch (Exception e) {
 						e.printStackTrace();
 					}
+				}
 			}
 		}
 		return result;
@@ -318,6 +330,9 @@ public class Evolution {
 	}
 	
 	private Point pickRandomMast(HashMap<Point, TransmitterMast> masts) {
+		if (masts.size() < 1)
+			return null;
+		
 		Random random = new Random(System.currentTimeMillis());
 		Point[] points = masts.keySet().toArray(new Point[masts.size()]);
 		return points[random.nextInt(points.length)];
@@ -340,7 +355,7 @@ public class Evolution {
 		HashMap<Point, TransmitterMast> from = (HashMap<Point, TransmitterMast>) masts.clone();
 		masts.clear();
 		for (int i = 0; i < amount; ++i) {
-			Point point = pickRandomMast(masts);
+			Point point = pickRandomMast(from);
 			// Try ten times
 			for (int j = 0; j < 10; ++j) {
 				// Find a near place

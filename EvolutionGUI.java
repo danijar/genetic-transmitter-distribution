@@ -183,7 +183,7 @@ public class EvolutionGUI implements ActionListener {
 		float minCoverage = 0.9f;
 		// The number of individuals in a generation. You may change this parameter
 		// if you need to - but be warned that the GUI will not be able to display
-		// many individuals and will only become slower.
+		// many individuals   and will only become slower.
 		// However, if you choose to change it - leave a comment why.
 		//default: 18
 		int generationSize = 18;
